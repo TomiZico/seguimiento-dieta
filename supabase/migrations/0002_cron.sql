@@ -1,7 +1,9 @@
 -- Programa la función "send-due-notifications" para que se ejecute cada minuto.
--- IMPORTANTE: antes de correr esta migración, reemplazá los dos placeholders
--- de abajo (PROJECT_REF y SERVICE_ROLE_KEY) con los valores reales de tu
--- proyecto (Project Settings → API). Ver README para el paso a paso.
+-- La función se despliega con verify_jwt=false (ver supabase/config.toml),
+-- así que el cron no necesita llevar ninguna credencial: solo dispara la
+-- URL y la función hace el resto usando su service role key interna.
+-- Reemplazá PROJECT_REF por la referencia de tu proyecto (Project Settings →
+-- General → Reference ID) si estás aplicando esto en un proyecto distinto.
 
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
@@ -12,10 +14,7 @@ select cron.schedule(
   $$
   select net.http_post(
     url := 'https://PROJECT_REF.supabase.co/functions/v1/send-due-notifications',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer SERVICE_ROLE_KEY'
-    ),
+    headers := jsonb_build_object('Content-Type', 'application/json'),
     body := '{}'::jsonb
   );
   $$

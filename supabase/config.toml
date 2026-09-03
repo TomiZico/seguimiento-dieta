@@ -1,4 +1,7 @@
 project_id = "seguimiento-dieta"
 
 [functions.send-due-notifications]
-verify_jwt = true
+# Sin verificación de JWT: la invoca un cron interno (ver 0002_cron.sql), no
+# recibe ni expone datos sensibles en la request, y todo el acceso a la base
+# sale por dentro con la service role key (inyectada automáticamente).
+verify_jwt = false

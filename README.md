@@ -73,23 +73,33 @@ VITE_VAPID_PUBLIC_KEY=BN...
 
 ### 4. Desplegar la función de notificaciones
 
-Necesitás la [Supabase CLI](https://supabase.com/docs/guides/cli) instalada y
-logueada (`supabase login`), y el proyecto linkeado (`supabase link --project-ref TU_PROJECT_REF`).
+**Con la Supabase CLI** ([instalación](https://supabase.com/docs/guides/cli)):
 
 ```bash
+supabase login
+supabase link --project-ref TU_PROJECT_REF
 supabase secrets set VAPID_PUBLIC_KEY=BN... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:tu@email.com
-supabase functions deploy send-due-notifications
+supabase functions deploy send-due-notifications --no-verify-jwt
 ```
 
+**O sin CLI, desde el dashboard**: subí el contenido de
+[`supabase/functions/send-due-notifications/index.ts`](supabase/functions/send-due-notifications/index.ts)
+como una nueva Edge Function llamada `send-due-notifications` (Edge Functions →
+Deploy a new function), con **"Verify JWT" desactivado**, y en
+**Edge Functions → Secrets** cargá `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y
+`VAPID_SUBJECT`.
+
 (`SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` ya están disponibles
-automáticamente dentro de la función, no hace falta configurarlos.)
+automáticamente dentro de la función, no hace falta configurarlos. Al
+desactivar "Verify JWT" el cron no necesita llevar ninguna credencial —la
+función solo procesa datos propios de la base, no recibe nada sensible en la
+request.)
 
 ### 5. Programar el envío cada minuto
 
 Abrí [`supabase/migrations/0002_cron.sql`](supabase/migrations/0002_cron.sql),
 reemplazá `PROJECT_REF` (lo ves en la URL del proyecto o en Project Settings)
-y `SERVICE_ROLE_KEY` (Project Settings → API → `service_role`, es secreta, no
-la commitees) por los valores reales, y ejecutalo en el **SQL Editor**.
+por el valor real, y ejecutalo en el **SQL Editor**.
 
 ### 6. Desplegar el frontend
 
