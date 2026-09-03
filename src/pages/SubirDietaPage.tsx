@@ -1,13 +1,14 @@
 import { useMemo, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { FileUp, Plus, Trash2 } from "lucide-react";
-import { parseDietFile } from "@/lib/mealParsers";
+import { ClipboardPaste, FileUp, Plus, Trash2 } from "lucide-react";
+import { parseDietFile, parseFreeTextPlan } from "@/lib/mealParsers";
 import { deleteMealsInMonth, fetchMealsInRange, insertDraftMeals } from "@/lib/dietService";
 import { formatDateLong, monthRange } from "@/lib/date";
 import { MEAL_TYPE_LABELS, MEAL_TYPES, type DraftMeal } from "@/lib/types";
 
 type Step = "subir" | "revisar";
+type InputMode = "archivo" | "texto";
 
 function monthInputValue(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -16,6 +17,8 @@ function monthInputValue(d: Date): string {
 export function SubirDietaPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>("subir");
+  const [inputMode, setInputMode] = useState<InputMode>("archivo");
+  const [pastedText, setPastedText] = useState("");
   const [monthValue, setMonthValue] = useState(monthInputValue(new Date()));
   const [processing, setProcessing] = useState(false);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -27,28 +30,39 @@ export function SubirDietaPage() {
     return new Date(y ?? new Date().getFullYear(), (m ?? 1) - 1, 1);
   }, [monthValue]);
 
+  const applyResult = (result: { meals: DraftMeal[]; warnings: string[] }) => {
+    if (result.meals.length === 0) {
+      toast.error("No pude interpretar ninguna comida", {
+        description: result.warnings[0] ?? "Revisá el formato.",
+      });
+      setWarnings(result.warnings);
+      return;
+    }
+    setDrafts(
+      result.meals.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)),
+    );
+    setWarnings(result.warnings);
+    setStep("revisar");
+  };
+
   const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
     setProcessing(true);
     try {
-      const result = await parseDietFile(file, targetMonth);
-      if (result.meals.length === 0) {
-        toast.error("No pude interpretar ninguna comida del archivo", {
-          description: result.warnings[0] ?? "Revisá el formato del archivo.",
-        });
-        setWarnings(result.warnings);
-        return;
-      }
-      setDrafts(
-        result.meals.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)),
-      );
-      setWarnings(result.warnings);
-      setStep("revisar");
+      applyResult(await parseDietFile(file, targetMonth));
     } finally {
       setProcessing(false);
     }
+  };
+
+  const handlePastedText = () => {
+    if (!pastedText.trim()) {
+      toast.error("Pegá el texto de tu dieta primero");
+      return;
+    }
+    applyResult(parseFreeTextPlan(pastedText, targetMonth));
   };
 
   const grouped = useMemo(() => {
@@ -109,16 +123,38 @@ export function SubirDietaPage() {
     return (
       <div className="mx-auto max-w-md px-4 pb-28 pt-4">
         <p className="text-sm text-muted-foreground">
-          Subí un archivo con tu dieta mensual (columnas Día, Comida, Alimento y Horario) en CSV,
-          Excel, Word (.docx) o PDF. La vamos a organizar en un calendario para que la revises antes
-          de guardarla.
-        </p>
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          ¿Tenés un .doc viejo (Word 97-2003)? Abrilo en Word y guardalo como .docx o PDF (Archivo →
-          Guardar como) antes de subirlo — ese formato antiguo no se puede leer de forma confiable.
+          Subí tu dieta mensual (CSV, Excel, Word o PDF) o pegá el texto directamente. Puede ser una
+          tabla o un plan semanal en texto libre (por día: "Desayuno: ...", "Colación: ...",
+          "Almuerzo: ...") — lo vamos a organizar en un calendario para que lo revises antes de
+          guardarlo.
         </p>
 
-        <label className="mt-6 block text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+        <div className="mt-4 flex gap-1 rounded-md bg-foreground/5 p-1 ring-1 ring-border">
+          <button
+            type="button"
+            onClick={() => setInputMode("archivo")}
+            className={`flex-1 rounded py-2 text-xs font-medium transition-colors ${
+              inputMode === "archivo"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Subir archivo
+          </button>
+          <button
+            type="button"
+            onClick={() => setInputMode("texto")}
+            className={`flex-1 rounded py-2 text-xs font-medium transition-colors ${
+              inputMode === "texto"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Pegar texto
+          </button>
+        </div>
+
+        <label className="mt-4 block text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
           Mes de la dieta
         </label>
         <input
@@ -128,23 +164,53 @@ export function SubirDietaPage() {
           className="mt-2 min-h-[44px] w-full rounded-md bg-foreground/5 px-3 text-base ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-primary"
         />
 
-        <label
-          htmlFor="diet-file-input"
-          className={`mt-6 flex min-h-[160px] w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-card text-center text-sm text-muted-foreground transition-colors hover:border-primary/50 ${
-            processing ? "opacity-50" : "cursor-pointer"
-          }`}
-        >
-          <FileUp className="size-6" />
-          {processing ? "Procesando…" : "Tocá para elegir un archivo (.csv, .xlsx, .docx, .pdf)"}
-        </label>
-        <input
-          id="diet-file-input"
-          type="file"
-          accept=".csv,.xlsx,.xls,.docx,.pdf"
-          onChange={handleFile}
-          disabled={processing}
-          className="sr-only"
-        />
+        {inputMode === "archivo" ? (
+          <>
+            <label
+              htmlFor="diet-file-input"
+              className={`mt-4 flex min-h-[160px] w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-card text-center text-sm text-muted-foreground transition-colors hover:border-primary/50 ${
+                processing ? "opacity-50" : "cursor-pointer"
+              }`}
+            >
+              <FileUp className="size-6" />
+              {processing
+                ? "Procesando…"
+                : "Tocá para elegir un archivo (.csv, .xlsx, .docx, .pdf)"}
+            </label>
+            <input
+              id="diet-file-input"
+              type="file"
+              accept=".csv,.xlsx,.xls,.docx,.pdf"
+              onChange={handleFile}
+              disabled={processing}
+              className="sr-only"
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              ¿Tenés un .doc viejo (Word 97-2003)? Ese formato no se puede leer directamente acá —
+              usá "Pegar texto": abrí el archivo, copiá todo (Ctrl+A, Ctrl+C) y pegalo.
+            </p>
+          </>
+        ) : (
+          <>
+            <textarea
+              value={pastedText}
+              onChange={(e) => setPastedText(e.target.value)}
+              placeholder={
+                "Pegá acá el texto de tu dieta, por ejemplo:\n\nLUNES:\nDesayuno: café con leche, pan integral\nColación: yogur\nAlmuerzo: pollo con ensalada\n..."
+              }
+              rows={10}
+              className="mt-4 w-full rounded-md bg-foreground/5 p-3 font-mono text-xs text-foreground ring-1 ring-border placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <button
+              type="button"
+              onClick={handlePastedText}
+              className="mt-3 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground ring-1 ring-primary/60 hover:opacity-90"
+            >
+              <ClipboardPaste className="size-4" />
+              Procesar texto
+            </button>
+          </>
+        )}
 
         {warnings.length > 0 && (
           <div className="mt-4 space-y-1 rounded-xl bg-warning/10 p-3 text-xs text-warning ring-1 ring-warning/30">

@@ -118,17 +118,42 @@ de subir (arriba a la derecha) o la pantalla **Subir dieta**.
 
 ## Notas sobre el parseo de archivos
 
-- El archivo debe tener (en cualquier orden) columnas reconocibles como
-  "Día", "Comida", "Alimento" y "Horario".
+Hay dos formatos de dieta que la app entiende:
+
+**Tabla** (CSV, Excel, o una tabla real dentro de un .docx): con columnas
+reconocibles como "Día", "Comida", "Alimento" y "Horario", en cualquier
+orden.
 - La columna "Día" acepta: fecha explícita (`05/09`, `2026-09-05`), nombre de
   día de la semana (se repite en todas las ocurrencias de ese día en el mes
   elegido), número de día del mes, o "todos los días".
-- "Comida" reconoce desayuno/almuerzo/merienda/cena y variantes de colación
-  ("colación", "snack"); si no aclara mañana/tarde, se desambigua por el
-  horario cuando está disponible.
-- El PDF es el formato más difícil de interpretar automáticamente (no tiene
-  estructura de tabla real) — por eso existe la pantalla de previsualización:
-  siempre revisá el calendario antes de confirmar.
-- Word: se admite `.docx` (lee la tabla directamente del documento). El
-  formato viejo `.doc` (Word 97-2003) no se puede leer de forma confiable —
-  hay que convertirlo a `.docx` o PDF desde Word primero.
+
+**Plan semanal en texto libre** (el formato más común en planes de
+nutricionistas, y el que se usa automáticamente si un PDF o .docx no tiene
+una tabla real): un encabezado de día ("LUNES:") seguido de líneas
+"Comida: descripción" — por ejemplo:
+
+```
+LUNES:
+Desayuno: café con leche, pan integral con queso
+Colación: yogur con cereales
+Almuerzo: pollo con ensalada
+Merienda: licuado con fruta
+Colación: frutos secos
+Cena: pescado con verduras
+```
+
+En ambos formatos, "Comida" reconoce desayuno/almuerzo/merienda/cena y
+variantes de colación ("colación", "snack"); si no aclara mañana/tarde, se
+desambigua por el horario cuando está disponible, o por orden de aparición
+(la primera colación del día es de mañana, la segunda de tarde). Líneas como
+"Observación:" se ignoran.
+
+El PDF es el formato más difícil de interpretar automáticamente — por eso
+existe la pantalla de previsualización: siempre revisá el calendario antes
+de confirmar.
+
+**Word**: se admite `.docx` (lee la tabla si la tiene, o el texto libre si
+no). El formato viejo `.doc` (Word 97-2003) no se puede leer directamente en
+el navegador — la forma más simple es abrir el archivo, copiar todo el
+texto (Ctrl+A, Ctrl+C) y usar la opción **"Pegar texto"** de la pantalla
+"Subir dieta", que interpreta el mismo formato de texto libre.
