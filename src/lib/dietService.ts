@@ -23,11 +23,18 @@ export async function fetchMealsInRange(startDate: string, endDate: string): Pro
   return data ?? [];
 }
 
+const INSERT_CHUNK_SIZE = 50;
+
+/** Inserta en lotes chicos: un plan mensual puede tener 150+ filas, y un solo
+ * pedido gigante es más frágil en redes de celular lentas o inestables. */
 export async function insertDraftMeals(drafts: DraftMeal[]): Promise<void> {
   if (drafts.length === 0) return;
   const rows = drafts.map((d) => ({ ...d, status: "pendiente" as MealStatus }));
-  const { error } = await supabase.from("meals").insert(rows);
-  if (error) throw error;
+  for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + INSERT_CHUNK_SIZE);
+    const { error } = await supabase.from("meals").insert(chunk);
+    if (error) throw error;
+  }
 }
 
 export async function deleteMealsInMonth(monthStart: string, monthEnd: string): Promise<void> {

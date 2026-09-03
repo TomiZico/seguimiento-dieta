@@ -24,6 +24,7 @@ export function SubirDietaPage() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [drafts, setDrafts] = useState<DraftMeal[]>([]);
   const [saving, setSaving] = useState(false);
+  const [confirmReplace, setConfirmReplace] = useState<number | null>(null);
 
   const targetMonth = useMemo(() => {
     const [y, m] = monthValue.split("-").map(Number);
@@ -86,6 +87,27 @@ export function SubirDietaPage() {
     setDrafts((prev) => [...prev, { date, meal_type: "almuerzo", food: "", time: "13:00" }]);
   };
 
+  const doSave = async () => {
+    const range = monthRange(targetMonth);
+    setSaving(true);
+    try {
+      await deleteMealsInMonth(range.start, range.end);
+      await insertDraftMeals(drafts);
+      toast.success("Dieta guardada", { description: `${drafts.length} comidas cargadas.` });
+      navigate("/");
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Error al guardar la dieta:", err);
+      toast.error("No pude guardar la dieta", {
+        description: err instanceof Error ? err.message : String(err),
+        duration: 10000,
+      });
+    } finally {
+      setSaving(false);
+      setConfirmReplace(null);
+    }
+  };
+
   const confirm = async () => {
     if (drafts.length === 0) {
       toast.error("No hay comidas para guardar");
@@ -95,28 +117,15 @@ export function SubirDietaPage() {
     try {
       const existing = await fetchMealsInRange(range.start, range.end);
       if (existing.length > 0) {
-        const ok = window.confirm(
-          `Ya tenés ${existing.length} comidas cargadas para ese mes. Confirmar reemplaza todo ese mes por esta dieta nueva. ¿Continuar?`,
-        );
-        if (!ok) return;
+        setConfirmReplace(existing.length);
+        return;
       }
-    } catch {
-      // si falla la verificación, seguimos igual: insertDraftMeals abajo mostrará el error real si lo hay
-    }
-
-    setSaving(true);
-    try {
-      await deleteMealsInMonth(range.start, range.end);
-      await insertDraftMeals(drafts);
-      toast.success("Dieta guardada", { description: `${drafts.length} comidas cargadas.` });
-      navigate("/");
     } catch (err) {
-      toast.error("No pude guardar la dieta", {
-        description: err instanceof Error ? err.message : String(err),
-      });
-    } finally {
-      setSaving(false);
+      // eslint-disable-next-line no-console
+      console.error("Error al chequear comidas existentes:", err);
+      // si falla la verificación, seguimos igual: doSave() abajo mostrará el error real si lo hay
     }
+    await doSave();
   };
 
   if (step === "subir") {
@@ -306,7 +315,7 @@ export function SubirDietaPage() {
         ))}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur">
         <div className="mx-auto flex max-w-md gap-2">
           <button
             type="button"
@@ -325,6 +334,36 @@ export function SubirDietaPage() {
           </button>
         </div>
       </div>
+
+      {confirmReplace !== null && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center">
+          <div className="w-full max-w-md rounded-t-xl bg-card p-5 ring-1 ring-border sm:rounded-xl">
+            <p className="text-sm font-medium">Reemplazar dieta del mes</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Ya tenés {confirmReplace} comidas cargadas para ese mes. Confirmar reemplaza todo ese
+              mes por esta dieta nueva.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmReplace(null)}
+                disabled={saving}
+                className="min-h-[44px] flex-1 rounded-md bg-foreground/5 text-sm font-medium text-muted-foreground ring-1 ring-border hover:text-foreground disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={doSave}
+                disabled={saving}
+                className="min-h-[44px] flex-1 rounded-md bg-primary text-sm font-medium text-primary-foreground ring-1 ring-primary/60 hover:opacity-90 disabled:opacity-50"
+              >
+                {saving ? "Guardando…" : "Reemplazar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
