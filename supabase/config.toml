@@ -1,0 +1,4 @@
+project_id = "seguimiento-dieta"
+
+[functions.send-due-notifications]
+verify_jwt = true
