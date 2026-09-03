@@ -3,11 +3,21 @@ import { createClient } from "@supabase/supabase-js";
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!url || !anonKey) {
+export const isSupabaseConfigured = Boolean(url && anonKey);
+
+if (!isSupabaseConfigured) {
   // eslint-disable-next-line no-console
   console.warn(
     "Faltan VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY. Configuralas en .env.local (ver README).",
   );
 }
 
-export const supabase = createClient(url ?? "", anonKey ?? "");
+// Si faltan las variables, usamos una URL válida-pero-inerte en vez de una
+// vacía: createClient() tira una excepción sincrónica con una URL vacía, lo
+// que rompe el render de toda la app (pantalla en blanco). Con esta, el
+// cliente se crea sin problema y cada pedido falla de forma controlada más
+// tarde, mostrando el banner de configuración en vez de una pantalla vacía.
+export const supabase = createClient(
+  url || "https://misconfigured.invalid.supabase.co",
+  anonKey || "misconfigured",
+);
