@@ -2,6 +2,7 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
+import JSZip from "jszip";
 import { normalize } from "./text";
 import { matchMealType } from "./mealType";
 import { parseTime, resolveDayToDates } from "./dateResolve";
@@ -157,6 +158,56 @@ async function parsePdfFile(file: File): Promise<string[][]> {
   return rows;
 }
 
+/** Junta el texto de todos los <w:t> dentro de un elemento (una celda, un párrafo, etc). */
+function textOf(el: Element): string {
+  return [...el.getElementsByTagName("w:t")].map((t) => t.textContent ?? "").join("");
+}
+
+/**
+ * Extrae la primera tabla de un .docx (Word) leyendo directamente
+ * word/document.xml dentro del .zip. Si el documento no tiene una tabla,
+ * cae a una línea por párrafo (mismo criterio "mejor esfuerzo" que el PDF).
+ */
+async function parseDocxFile(file: File): Promise<{ rows: string[][]; hadTable: boolean }> {
+  const buffer = await file.arrayBuffer();
+  const zip = await JSZip.loadAsync(buffer);
+  const xmlText = await zip.file("word/document.xml")?.async("string");
+  if (!xmlText) throw new Error("No parece un archivo .docx válido.");
+
+  const doc = new DOMParser().parseFromString(xmlText, "application/xml");
+  if (doc.getElementsByTagName("parsererror").length > 0) {
+    throw new Error("No pude interpretar el contenido del .docx.");
+  }
+
+  const table = doc.getElementsByTagName("w:tbl")[0];
+  if (table) {
+    const rows = [...table.getElementsByTagName("w:tr")].map((tr) =>
+      [...tr.getElementsByTagName("w:tc")].map((tc) => textOf(tc).trim()),
+    );
+    return { rows, hadTable: true };
+  }
+
+  // Sin tabla: una "celda" por párrafo, separando por espacios largos como en el PDF.
+  const rows = [...doc.getElementsByTagName("w:p")]
+    .map((p) => textOf(p).trim())
+    .filter(Boolean)
+    .map((line) =>
+      line
+        .split(/\s{2,}|\t|\|/)
+        .map((c) => c.trim())
+        .filter(Boolean),
+    )
+    .filter((cells) => cells.length >= 2);
+  return { rows, hadTable: false };
+}
+
+const OLE_MAGIC = [0xd0, 0xcf, 0x11, 0xe0];
+
+async function looksLikeLegacyDoc(file: File): Promise<boolean> {
+  const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+  return OLE_MAGIC.every((b, i) => head[i] === b);
+}
+
 export async function parseDietFile(file: File, targetMonth: Date): Promise<ParseResult> {
   const name = file.name.toLowerCase();
   try {
@@ -174,7 +225,28 @@ export async function parseDietFile(file: File, targetMonth: Date): Promise<Pars
       );
       return result;
     }
-    return { meals: [], warnings: ["Formato no soportado. Subí un archivo .csv, .xlsx o .pdf."] };
+    if (name.endsWith(".docx")) {
+      const { rows, hadTable } = await parseDocxFile(file);
+      const result = rowsToMeals(rows, targetMonth);
+      if (!hadTable) {
+        result.warnings.unshift(
+          "No encontré una tabla en el documento, así que interpreté el texto línea por línea: revisá con atención el calendario antes de confirmar.",
+        );
+      }
+      return result;
+    }
+    if (name.endsWith(".doc") || (await looksLikeLegacyDoc(file))) {
+      return {
+        meals: [],
+        warnings: [
+          "El formato .doc (Word 97-2003) no se puede leer de forma confiable. Abrí el archivo en Word y guardalo como .docx (Archivo → Guardar como → Documento de Word) o como PDF, y subilo de nuevo.",
+        ],
+      };
+    }
+    return {
+      meals: [],
+      warnings: ["Formato no soportado. Subí un archivo .csv, .xlsx, .docx o .pdf."],
+    };
   } catch (err) {
     return {
       meals: [],

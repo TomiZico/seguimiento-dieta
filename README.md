@@ -129,3 +129,6 @@ de subir (arriba a la derecha) o la pantalla **Subir dieta**.
 - El PDF es el formato más difícil de interpretar automáticamente (no tiene
   estructura de tabla real) — por eso existe la pantalla de previsualización:
   siempre revisá el calendario antes de confirmar.
+- Word: se admite `.docx` (lee la tabla directamente del documento). El
+  formato viejo `.doc` (Word 97-2003) no se puede leer de forma confiable —
+  hay que convertirlo a `.docx` o PDF desde Word primero.

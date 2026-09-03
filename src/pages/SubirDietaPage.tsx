@@ -110,7 +110,12 @@ export function SubirDietaPage() {
       <div className="mx-auto max-w-md px-4 pb-28 pt-4">
         <p className="text-sm text-muted-foreground">
           Subí un archivo con tu dieta mensual (columnas Día, Comida, Alimento y Horario) en CSV,
-          Excel o PDF. La vamos a organizar en un calendario para que la revises antes de guardarla.
+          Excel, Word (.docx) o PDF. La vamos a organizar en un calendario para que la revises antes
+          de guardarla.
+        </p>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          ¿Tenés un .doc viejo (Word 97-2003)? Abrilo en Word y guardalo como .docx o PDF (Archivo →
+          Guardar como) antes de subirlo — ese formato antiguo no se puede leer de forma confiable.
         </p>
 
         <label className="mt-6 block text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
@@ -130,12 +135,12 @@ export function SubirDietaPage() {
           }`}
         >
           <FileUp className="size-6" />
-          {processing ? "Procesando…" : "Tocá para elegir un archivo (.csv, .xlsx, .pdf)"}
+          {processing ? "Procesando…" : "Tocá para elegir un archivo (.csv, .xlsx, .docx, .pdf)"}
         </label>
         <input
           id="diet-file-input"
           type="file"
-          accept=".csv,.xlsx,.xls,.pdf"
+          accept=".csv,.xlsx,.xls,.docx,.pdf"
           onChange={handleFile}
           disabled={processing}
           className="sr-only"

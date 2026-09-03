@@ -22,8 +22,8 @@ function ConfigWarning() {
       <TriangleAlert className="mt-0.5 size-4 shrink-0" />
       <span>
         Faltan las variables de entorno de Supabase (<code>VITE_SUPABASE_URL</code> /{" "}
-        <code>VITE_SUPABASE_ANON_KEY</code>). La app no va a poder cargar ni guardar datos hasta
-        que se configuren y se vuelva a desplegar. Ver el README.
+        <code>VITE_SUPABASE_ANON_KEY</code>). La app no va a poder cargar ni guardar datos hasta que
+        se configuren y se vuelva a desplegar. Ver el README.
       </span>
     </div>
   );
