@@ -4,6 +4,19 @@ import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { fileURLToPath, URL } from "node:url";
 
+// Diagnóstico temporal: confirma en el log de build de Vercel si las
+// variables de entorno realmente llegan al proceso de build, sin exponer
+// ningún valor. Se saca una vez resuelto (ver README).
+console.log("[env-check] VITE_SUPABASE_URL presente:", Boolean(process.env.VITE_SUPABASE_URL));
+console.log(
+  "[env-check] VITE_SUPABASE_ANON_KEY presente:",
+  Boolean(process.env.VITE_SUPABASE_ANON_KEY),
+);
+console.log(
+  "[env-check] VITE_VAPID_PUBLIC_KEY presente:",
+  Boolean(process.env.VITE_VAPID_PUBLIC_KEY),
+);
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
