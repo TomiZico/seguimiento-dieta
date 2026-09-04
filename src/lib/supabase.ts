@@ -20,4 +20,15 @@ if (!isSupabaseConfigured) {
 export const supabase = createClient(
   url || "https://misconfigured.invalid.supabase.co",
   anonKey || "misconfigured",
+  {
+    auth: {
+      // Explícito (son los defaults, pero así queda claro): la sesión se
+      // guarda en localStorage y se renueva sola, para no tener que volver a
+      // iniciar sesión cada vez que se abre la app instalada.
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: typeof window !== "undefined" ? window.localStorage : undefined,
+    },
+  },
 );

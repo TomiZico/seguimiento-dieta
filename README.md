@@ -87,7 +87,12 @@ Guardá las dos claves que imprime. La pública va también en `.env.local`:
 VITE_VAPID_PUBLIC_KEY=BN...
 ```
 
-### 4. Desplegar la función de notificaciones
+### 4. Desplegar las funciones (notificaciones y acciones rápidas)
+
+Son dos funciones: `send-due-notifications` (el cron que manda los avisos) y
+`meal-action` (la que ejecutan los botones Comido/Posponer/Saltear cuando se
+tocan desde la notificación, con la app cerrada — necesita su propia función
+porque el service worker no tiene la sesión del usuario logueado).
 
 **Con la Supabase CLI** ([instalación](https://supabase.com/docs/guides/cli)):
 
@@ -96,20 +101,23 @@ supabase login
 supabase link --project-ref TU_PROJECT_REF
 supabase secrets set VAPID_PUBLIC_KEY=BN... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:tu@email.com
 supabase functions deploy send-due-notifications --no-verify-jwt
+supabase functions deploy meal-action --no-verify-jwt
 ```
 
 **O sin CLI, desde el dashboard**: subí el contenido de
 [`supabase/functions/send-due-notifications/index.ts`](supabase/functions/send-due-notifications/index.ts)
-como una nueva Edge Function llamada `send-due-notifications` (Edge Functions →
-Deploy a new function), con **"Verify JWT" desactivado**, y en
+y de [`supabase/functions/meal-action/index.ts`](supabase/functions/meal-action/index.ts)
+como dos Edge Functions nuevas (llamadas exactamente `send-due-notifications`
+y `meal-action`), ambas con **"Verify JWT" desactivado**, y en
 **Edge Functions → Secrets** cargá `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y
-`VAPID_SUBJECT`.
+`VAPID_SUBJECT` (esos dos secrets solo los usa `send-due-notifications`).
 
 (`SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` ya están disponibles
-automáticamente dentro de la función, no hace falta configurarlos. Al
-desactivar "Verify JWT" el cron no necesita llevar ninguna credencial —la
-función solo procesa datos propios de la base, no recibe nada sensible en la
-request.)
+automáticamente dentro de las funciones, no hace falta configurarlos. Al
+desactivar "Verify JWT" no necesitan llevar ninguna credencial de usuario —
+`send-due-notifications` la llama el cron y `meal-action` el service worker,
+ninguno de los dos tiene un login; cada función usa su propia service role
+key del lado del servidor para las operaciones que hace.)
 
 ### 5. Programar el envío cada minuto
 

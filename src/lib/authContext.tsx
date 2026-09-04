@@ -24,10 +24,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [passwordRecovery, setPasswordRecovery] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
+    // Si falla (ej. sin red al abrir la app), no nos quedamos colgados en
+    // loading para siempre: onAuthStateChange abajo también dispara con la
+    // sesión guardada apenas se puede, así que igual se recupera sola.
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        setSession(data.session);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, newSession) => {

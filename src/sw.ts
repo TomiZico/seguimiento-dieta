@@ -2,7 +2,6 @@
 declare const self: ServiceWorkerGlobalScope;
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 interface PushPayload {
   title: string;
@@ -46,32 +45,18 @@ self.addEventListener("push", (event) => {
   event.waitUntil(self.registration.showNotification(payload.title, options));
 });
 
-async function patchMeal(id: string, body: Record<string, unknown>): Promise<void> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !id) return;
-  await fetch(`${SUPABASE_URL}/rest/v1/meals?id=eq.${id}`, {
-    method: "PATCH",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json",
-      Prefer: "return=minimal",
-    },
-    body: JSON.stringify(body),
+// El service worker no tiene la sesión del usuario logueado (no puede leer
+// el localStorage de la pestaña), así que las acciones rápidas de la
+// notificación pasan por una Edge Function con service role en vez de
+// pegarle directo a /rest/v1 — de otro modo las policies de RLS las
+// bloquearían por no llevar un JWT de usuario válido.
+async function callMealAction(mealId: string, action: "comido" | "saltear" | "posponer"): Promise<void> {
+  if (!SUPABASE_URL || !mealId) return;
+  await fetch(`${SUPABASE_URL}/functions/v1/meal-action`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mealId, action }),
   });
-}
-
-async function postponeFifteenMinutes(id: string): Promise<void> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !id) return;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/meals?id=eq.${id}&select=time`, {
-    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-  });
-  const rows = (await res.json()) as { time: string }[];
-  const time = rows[0]?.time;
-  if (!time) return;
-  const [h, m] = time.split(":").map(Number);
-  const total = ((h ?? 0) * 60 + (m ?? 0) + 15) % 1440;
-  const newTime = `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-  await patchMeal(id, { time: newTime, notified_at: null });
 }
 
 async function focusOrOpenApp(): Promise<void> {
@@ -91,12 +76,8 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil(
     (async () => {
-      if (event.action === "comido") {
-        await patchMeal(mealId, { status: "comido" });
-      } else if (event.action === "saltear") {
-        await patchMeal(mealId, { status: "salteado" });
-      } else if (event.action === "posponer") {
-        await postponeFifteenMinutes(mealId);
+      if (event.action === "comido" || event.action === "saltear" || event.action === "posponer") {
+        await callMealAction(mealId, event.action);
       } else {
         await focusOrOpenApp();
       }
