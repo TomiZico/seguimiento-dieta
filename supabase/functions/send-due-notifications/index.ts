@@ -43,17 +43,23 @@ Deno.serve(async () => {
     return n.getUTCHours() * 60 + n.getUTCMinutes();
   })();
 
+  // La función corre con la service role key, que ignora RLS: acá se procesan
+  // las comidas de TODOS los usuarios en una sola pasada, agrupando por
+  // user_id para mandarle a cada uno sus propios avisos con sus propias
+  // suscripciones y su propia configuración.
   const { data: settingsRows, error: settingsError } = await supabase
     .from("notification_settings")
-    .select("meal_type, lead_minutes, enabled");
+    .select("user_id, meal_type, lead_minutes, enabled");
   if (settingsError) {
     return new Response(JSON.stringify({ error: settingsError.message }), { status: 500 });
   }
-  const leadByType = new Map(settingsRows.map((s) => [s.meal_type, s]));
+  const leadByUserAndType = new Map(
+    settingsRows.map((s) => [`${s.user_id}:${s.meal_type}`, s]),
+  );
 
   const { data: meals, error: mealsError } = await supabase
     .from("meals")
-    .select("id, meal_type, food, time")
+    .select("id, user_id, meal_type, food, time")
     .eq("date", today)
     .eq("status", "pendiente")
     .is("notified_at", null);
@@ -62,7 +68,7 @@ Deno.serve(async () => {
   }
 
   const due = (meals ?? []).filter((meal) => {
-    const setting = leadByType.get(meal.meal_type);
+    const setting = leadByUserAndType.get(`${meal.user_id}:${meal.meal_type}`);
     if (!setting || !setting.enabled) return false;
     const [h, m] = String(meal.time).split(":").map(Number);
     const mealMinutes = (h ?? 0) * 60 + (m ?? 0);
@@ -78,9 +84,14 @@ Deno.serve(async () => {
 
   const { data: subs, error: subsError } = await supabase
     .from("push_subscriptions")
-    .select("endpoint, p256dh, auth");
+    .select("user_id, endpoint, p256dh, auth");
   if (subsError) {
     return new Response(JSON.stringify({ error: subsError.message }), { status: 500 });
+  }
+  const subsByUser = new Map<string, typeof subs>();
+  for (const sub of subs ?? []) {
+    if (!subsByUser.has(sub.user_id)) subsByUser.set(sub.user_id, []);
+    subsByUser.get(sub.user_id)!.push(sub);
   }
 
   let sent = 0;
@@ -91,7 +102,7 @@ Deno.serve(async () => {
       mealId: meal.id,
     });
 
-    for (const sub of subs ?? []) {
+    for (const sub of subsByUser.get(meal.user_id) ?? []) {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
@@ -102,7 +113,11 @@ Deno.serve(async () => {
         const statusCode = (err as { statusCode?: number }).statusCode;
         if (statusCode === 404 || statusCode === 410) {
           // Suscripción vencida/inválida: la borramos.
-          await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+          await supabase
+            .from("push_subscriptions")
+            .delete()
+            .eq("user_id", sub.user_id)
+            .eq("endpoint", sub.endpoint);
         } else {
           console.error("push error", err);
         }

@@ -21,6 +21,6 @@ export async function fetchNotificationSettings(): Promise<NotificationSetting[]
 export async function upsertNotificationSetting(setting: NotificationSetting): Promise<void> {
   const { error } = await supabase
     .from("notification_settings")
-    .upsert(setting, { onConflict: "meal_type" });
+    .upsert(setting, { onConflict: "user_id,meal_type" });
   if (error) throw error;
 }

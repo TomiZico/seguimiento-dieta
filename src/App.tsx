@@ -8,7 +8,9 @@ import { HoyPage } from "@/pages/HoyPage";
 import { CalendarioPage } from "@/pages/CalendarioPage";
 import { EstadisticasPage } from "@/pages/EstadisticasPage";
 import { ConfiguracionPage } from "@/pages/ConfiguracionPage";
+import { AuthPage } from "@/pages/AuthPage";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import { useAuth } from "@/lib/authContext";
 
 // Lazy: arrastra xlsx + pdf.js, que son pesados y solo hacen falta al subir una dieta.
 const SubirDietaPage = lazy(() =>
@@ -30,6 +32,21 @@ function ConfigWarning() {
 }
 
 function App() {
+  const { session, loading } = useAuth();
+
+  if (isSupabaseConfigured && loading) {
+    return <div className="min-h-screen bg-background text-foreground" />;
+  }
+
+  if (isSupabaseConfigured && !session) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <AuthPage />
+        <Toaster position="top-center" richColors />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Header />

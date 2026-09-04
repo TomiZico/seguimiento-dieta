@@ -1,11 +1,14 @@
 # Seguimiento de Dieta
 
-App mobile-first para subir tu dieta mensual (PDF, Excel o CSV), organizarla en
-un calendario de comidas y recibir un aviso push antes de cada una — aunque la
-app esté cerrada.
+App mobile-first, multiusuario, para subir tu dieta mensual (PDF, Excel o
+CSV), organizarla en un calendario de comidas y recibir un aviso push antes
+de cada una — aunque la app esté cerrada.
 
 ## Cómo funciona
 
+- **Cuentas**: cada persona crea su propia cuenta (email y contraseña) desde
+  la app y ve únicamente su propia dieta, su calendario y sus propios avisos
+  — los datos de cada usuario están completamente separados de los demás.
 - **Subir dieta**: cargás un archivo con columnas `Día | Comida | Alimento | Horario`
   (CSV o Excel; también acepta PDF con parseo best-effort). La app arma un
   calendario mensual y te muestra una vista previa editable ("Así interpretamos
@@ -26,10 +29,11 @@ app esté cerrada.
   `pg_cron`). Una función programada corre cada minuto, busca las comidas
   cuyo aviso corresponde enviar y manda un Web Push (VAPID) a los dispositivos
   suscriptos.
-- **Pensada para un solo usuario**, sin login. Las políticas de Postgres son
-  permisivas con la clave pública (`anon`) — es un trade-off razonable para
-  una app personal, pero **no la uses así si vas a compartir el link
-  públicamente** (cualquiera con la URL podría leer/editar los datos).
+- **Multiusuario con Supabase Auth**: el login es con email y contraseña.
+  Cada tabla (`meals`, `notification_settings`, `push_subscriptions`) tiene
+  una columna `user_id` y policies de Postgres que solo dejan ver/editar las
+  filas propias (`auth.uid() = user_id`) — cualquiera puede crear una cuenta
+  y usar la app, pero nadie ve los datos de otra persona.
 
 ## Puesta en marcha
 
@@ -48,16 +52,21 @@ pantallas muestran error al cargar datos — es esperable hasta el paso 2.
 
 1. Creá una cuenta gratis en [supabase.com](https://supabase.com) y un
    proyecto nuevo.
-2. En **SQL Editor**, pegá y ejecutá el contenido de
-   [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql).
+2. En **SQL Editor**, pegá y ejecutá en orden el contenido de
+   [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql)
+   y [`supabase/migrations/0003_multiuser.sql`](supabase/migrations/0003_multiuser.sql).
    Esto crea las tablas `meals`, `notification_settings` y
-   `push_subscriptions`.
+   `push_subscriptions`, con `user_id` y policies por usuario.
 3. En **Project Settings → API**, copiá `Project URL` y la clave `anon
    public`, y completá `.env.local`:
    ```
    VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
    VITE_SUPABASE_ANON_KEY=ey...
    ```
+4. (Opcional) En **Authentication → Sign In / Providers → Email**, podés
+   desactivar "Confirm email" para que una cuenta nueva quede activa al
+   toque sin tener que confirmar por mail — útil si la app la va a usar
+   poca gente de confianza (familia/amigos).
 
 ### 3. Generar las claves VAPID (para el push)
 
@@ -110,9 +119,11 @@ falta **HTTPS**, que las notificaciones push lo requieren:
 - Carpeta de salida: `dist`
 - Variables de entorno: las tres `VITE_*` de `.env.local`
 
-### 7. Activar los avisos
+### 7. Crear tu cuenta y activar los avisos
 
-Abrí la app desplegada desde el celular, andá a **Configuración** y tocá
+Abrí la app desplegada desde el celular. La primera vez te va a pedir crear
+una cuenta (email y contraseña) — cada persona que la use hace lo mismo y
+tiene su propia dieta separada. Ya adentro, andá a **Configuración** y tocá
 "Activar avisos antes de cada comida". Después subí tu dieta desde el ícono
 de subir (arriba a la derecha) o la pantalla **Subir dieta**.
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Bell, BellOff } from "lucide-react";
+import { Bell, BellOff, LogOut } from "lucide-react";
 import { fetchNotificationSettings, upsertNotificationSetting } from "@/lib/settingsService";
 import {
   getExistingSubscription,
@@ -9,13 +9,17 @@ import {
   unsubscribeFromPush,
 } from "@/lib/push";
 import { MEAL_TYPE_LABELS, type NotificationSetting } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/authContext";
 
 const LEAD_OPTIONS = [15, 30, 45, 60, 90, 120];
 
 export function ConfiguracionPage() {
+  const { user } = useAuth();
   const [settings, setSettings] = useState<NotificationSetting[]>([]);
   const [subscribed, setSubscribed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     fetchNotificationSettings()
@@ -73,8 +77,41 @@ export function ConfiguracionPage() {
     }
   };
 
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await unsubscribeFromPush().catch(() => {});
+      await supabase.auth.signOut();
+    } catch (err) {
+      toast.error("No pude cerrar sesión", {
+        description: err instanceof Error ? err.message : String(err),
+      });
+      setSigningOut(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-md px-4 pb-28 pt-4">
+      {user && (
+        <div className="mb-6 flex items-center justify-between gap-2 rounded-xl bg-card p-3 ring-1 ring-border">
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+              Sesión iniciada
+            </p>
+            <p className="truncate text-sm">{user.email}</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-border transition-colors hover:text-foreground disabled:opacity-40"
+          >
+            <LogOut className="size-3.5" />
+            Cerrar sesión
+          </button>
+        </div>
+      )}
+
       <button
         type="button"
         onClick={handleToggleSubscription}
