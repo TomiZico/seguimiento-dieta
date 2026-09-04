@@ -26,6 +26,7 @@ export function HoyPage() {
   }, []);
 
   const handleStatusChange = async (meal: Meal, status: MealStatus) => {
+    const previousStatus = meal.status;
     setMeals((prev) => prev?.map((m) => (m.id === meal.id ? { ...m, status } : m)) ?? prev);
     try {
       await updateMealStatus(meal.id, status);
@@ -34,6 +35,17 @@ export function HoyPage() {
         description: err instanceof Error ? err.message : String(err),
       });
       load();
+      return;
+    }
+
+    if (status !== "pendiente" && status !== previousStatus) {
+      const label = status === "comido" ? "Comido" : "Salteado";
+      toast(`${label}${meal.food ? `: ${meal.food}` : ""}`, {
+        action: {
+          label: "Deshacer",
+          onClick: () => handleStatusChange({ ...meal, status }, previousStatus),
+        },
+      });
     }
   };
 

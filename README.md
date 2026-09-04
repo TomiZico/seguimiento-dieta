@@ -13,13 +13,18 @@ de cada una — aunque la app esté cerrada.
   (CSV o Excel; también acepta PDF con parseo best-effort). La app arma un
   calendario mensual y te muestra una vista previa editable ("Así interpretamos
   tu dieta") antes de guardar nada.
-- **Hoy**: las comidas del día, en orden, con botones Comido / Salteado.
+- **Hoy**: las comidas del día, en orden, con botones Comido / Salteado (o
+  deslizando la tarjeta hacia la derecha/izquierda). Después de marcar una,
+  aparece un cartel con "Deshacer" por si te equivocaste.
 - **Calendario**: vista mes o semana; tocás un día para editar una comida
-  puntual sin afectar el resto del mes.
+  puntual sin afectar el resto del mes. También arma una **lista de
+  compras** a partir de las comidas del período visible.
 - **Estadísticas**: adherencia semanal y mensual.
 - **Notificaciones**: un aviso push real (llega aunque la app esté cerrada)
   antes de cada comida, con acciones rápidas Comido / Posponer 15 min /
-  Saltear. El tiempo de anticipación es configurable por tipo de comida.
+  Saltear. El tiempo de anticipación es configurable por tipo de comida, y
+  se calculan en el huso horario de cada usuario (detectado automáticamente
+  del dispositivo).
 
 ## Arquitectura
 
@@ -53,10 +58,12 @@ pantallas muestran error al cargar datos — es esperable hasta el paso 2.
 1. Creá una cuenta gratis en [supabase.com](https://supabase.com) y un
    proyecto nuevo.
 2. En **SQL Editor**, pegá y ejecutá en orden el contenido de
-   [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql)
-   y [`supabase/migrations/0003_multiuser.sql`](supabase/migrations/0003_multiuser.sql).
-   Esto crea las tablas `meals`, `notification_settings` y
-   `push_subscriptions`, con `user_id` y policies por usuario.
+   [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql),
+   [`supabase/migrations/0003_multiuser.sql`](supabase/migrations/0003_multiuser.sql)
+   y [`supabase/migrations/0004_user_timezone.sql`](supabase/migrations/0004_user_timezone.sql).
+   Esto crea las tablas `meals`, `notification_settings`,
+   `push_subscriptions` y `user_profiles`, con `user_id` y policies por
+   usuario.
 3. En **Project Settings → API**, copiá `Project URL` y la clave `anon
    public`, y completá `.env.local`:
    ```

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Salad } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-type Mode = "login" | "signup";
+type Mode = "login" | "signup" | "forgot";
 
 export function AuthPage() {
   const [mode, setMode] = useState<Mode>("login");
@@ -11,6 +11,12 @@ export function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    setError(null);
+    setNotice(null);
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -25,6 +31,12 @@ export function AuthPage() {
           setNotice("Cuenta creada. Revisá tu email para confirmarla y después iniciá sesión.");
           setMode("login");
         }
+      } else if (mode === "forgot") {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/restablecer-contrasena`,
+        });
+        if (resetError) throw resetError;
+        setNotice("Si ese email tiene una cuenta, te mandamos un link para elegir una contraseña nueva.");
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
@@ -39,6 +51,12 @@ export function AuthPage() {
     }
   };
 
+  const titleByMode: Record<Mode, string> = {
+    login: "Iniciá sesión para ver tu dieta",
+    signup: "Creá tu cuenta",
+    forgot: "Te mandamos un link para elegir una contraseña nueva",
+  };
+
   return (
     <div className="mx-auto flex min-h-[calc(100vh-1px)] max-w-md flex-col justify-center px-4 py-8">
       <div className="mb-8 flex flex-col items-center gap-2 text-center">
@@ -46,9 +64,7 @@ export function AuthPage() {
           <Salad className="size-6" />
         </div>
         <h1 className="text-xl font-semibold">Seguimiento de Dieta</h1>
-        <p className="text-sm text-muted-foreground">
-          {mode === "login" ? "Iniciá sesión para ver tu dieta" : "Creá tu cuenta"}
-        </p>
+        <p className="text-sm text-muted-foreground">{titleByMode[mode]}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-3">
@@ -66,21 +82,33 @@ export function AuthPage() {
             className="mt-1 min-h-[44px] w-full rounded-md bg-foreground/5 px-3 text-sm ring-1 ring-border outline-none focus:ring-primary"
           />
         </div>
-        <div>
-          <label htmlFor="password" className="text-xs text-muted-foreground">
-            Contraseña
-          </label>
-          <input
-            id="password"
-            type="password"
-            autoComplete={mode === "login" ? "current-password" : "new-password"}
-            required
-            minLength={6}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 min-h-[44px] w-full rounded-md bg-foreground/5 px-3 text-sm ring-1 ring-border outline-none focus:ring-primary"
-          />
-        </div>
+        {mode !== "forgot" && (
+          <div>
+            <label htmlFor="password" className="text-xs text-muted-foreground">
+              Contraseña
+            </label>
+            <input
+              id="password"
+              type="password"
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 min-h-[44px] w-full rounded-md bg-foreground/5 px-3 text-sm ring-1 ring-border outline-none focus:ring-primary"
+            />
+          </div>
+        )}
+
+        {mode === "login" && (
+          <button
+            type="button"
+            onClick={() => switchMode("forgot")}
+            className="block text-xs text-muted-foreground underline-offset-4 hover:underline"
+          >
+            ¿Olvidaste tu contraseña?
+          </button>
+        )}
 
         {error && (
           <p className="rounded-md bg-danger/10 p-2 text-xs text-danger ring-1 ring-danger/30">
@@ -98,20 +126,26 @@ export function AuthPage() {
           disabled={busy}
           className="min-h-[48px] w-full rounded-md bg-primary text-sm font-medium text-primary-foreground transition-colors disabled:opacity-40"
         >
-          {busy ? "Un momento…" : mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
+          {busy
+            ? "Un momento…"
+            : mode === "login"
+              ? "Iniciar sesión"
+              : mode === "signup"
+                ? "Crear cuenta"
+                : "Mandar link"}
         </button>
       </form>
 
       <button
         type="button"
-        onClick={() => {
-          setMode(mode === "login" ? "signup" : "login");
-          setError(null);
-          setNotice(null);
-        }}
+        onClick={() => switchMode(mode === "signup" ? "login" : mode === "forgot" ? "login" : "signup")}
         className="mt-4 text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
       >
-        {mode === "login" ? "¿No tenés cuenta? Creá una" : "¿Ya tenés cuenta? Iniciá sesión"}
+        {mode === "signup"
+          ? "¿Ya tenés cuenta? Iniciá sesión"
+          : mode === "forgot"
+            ? "Volver a iniciar sesión"
+            : "¿No tenés cuenta? Creá una"}
       </button>
     </div>
   );

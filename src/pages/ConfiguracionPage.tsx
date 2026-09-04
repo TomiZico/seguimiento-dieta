@@ -99,6 +99,9 @@ export function ConfiguracionPage() {
               Sesión iniciada
             </p>
             <p className="truncate text-sm">{user.email}</p>
+            <p className="text-[11px] text-muted-foreground">
+              Zona horaria: {Intl.DateTimeFormat().resolvedOptions().timeZone}
+            </p>
           </div>
           <button
             type="button"

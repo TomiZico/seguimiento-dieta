@@ -1,16 +1,19 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { TriangleAlert } from "lucide-react";
 import { Header } from "@/components/Header";
 import { BottomNav } from "@/components/BottomNav";
+import { InstallBanner } from "@/components/InstallBanner";
 import { HoyPage } from "@/pages/HoyPage";
 import { CalendarioPage } from "@/pages/CalendarioPage";
 import { EstadisticasPage } from "@/pages/EstadisticasPage";
 import { ConfiguracionPage } from "@/pages/ConfiguracionPage";
 import { AuthPage } from "@/pages/AuthPage";
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/lib/authContext";
+import { syncDeviceTimezone } from "@/lib/profileService";
 
 // Lazy: arrastra xlsx + pdf.js, que son pesados y solo hacen falta al subir una dieta.
 const SubirDietaPage = lazy(() =>
@@ -32,10 +35,24 @@ function ConfigWarning() {
 }
 
 function App() {
-  const { session, loading } = useAuth();
+  const { session, loading, passwordRecovery, clearPasswordRecovery } = useAuth();
+  const userId = session?.user.id;
+
+  useEffect(() => {
+    if (userId && !passwordRecovery) syncDeviceTimezone();
+  }, [userId, passwordRecovery]);
 
   if (isSupabaseConfigured && loading) {
     return <div className="min-h-screen bg-background text-foreground" />;
+  }
+
+  if (isSupabaseConfigured && passwordRecovery) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <ResetPasswordPage onDone={clearPasswordRecovery} />
+        <Toaster position="top-center" richColors />
+      </div>
+    );
   }
 
   if (isSupabaseConfigured && !session) {
@@ -51,6 +68,7 @@ function App() {
     <div className="min-h-screen bg-background text-foreground">
       <Header />
       <ConfigWarning />
+      <InstallBanner />
       <main>
         <Routes>
           <Route path="/" element={<HoyPage />} />

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, ShoppingCart } from "lucide-react";
 import { fetchMealsInRange, insertDraftMeals, deleteMeal, updateMeal } from "@/lib/dietService";
 import {
   formatDateLong,
@@ -11,6 +11,7 @@ import {
   weekRange,
 } from "@/lib/date";
 import { EditableMealRow } from "@/components/EditableMealRow";
+import { ShoppingList } from "@/components/ShoppingList";
 import type { Meal } from "@/lib/types";
 
 type ViewMode = "mes" | "semana";
@@ -20,6 +21,7 @@ export function CalendarioPage() {
   const [cursor, setCursor] = useState(new Date());
   const [meals, setMeals] = useState<Meal[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(todayISO());
+  const [showShoppingList, setShowShoppingList] = useState(false);
 
   const range = viewMode === "mes" ? monthRange(cursor) : weekRange(cursor);
 
@@ -170,35 +172,59 @@ export function CalendarioPage() {
         })}
       </div>
 
-      <div className="mt-6">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium capitalize">{formatDateLong(selectedDate)}</p>
-          <button
-            type="button"
-            onClick={handleAdd}
-            className="flex items-center gap-1 rounded-md bg-foreground/5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-border hover:text-foreground"
-          >
-            <Plus className="size-3.5" />
-            Agregar
-          </button>
-        </div>
+      <button
+        type="button"
+        onClick={() => setShowShoppingList((v) => !v)}
+        className={`mt-6 flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-md text-xs font-medium ring-1 transition-colors ${
+          showShoppingList
+            ? "bg-primary/15 text-primary ring-primary/30"
+            : "bg-foreground/5 text-muted-foreground ring-border hover:text-foreground"
+        }`}
+      >
+        <ShoppingCart className="size-3.5" />
+        {showShoppingList
+          ? "Ver comidas por día"
+          : `Lista de compras de ${viewMode === "mes" ? "este mes" : "esta semana"}`}
+      </button>
 
-        <div className="mt-3 space-y-2">
-          {selectedMeals.length === 0 && (
-            <p className="rounded-xl bg-card/60 p-4 text-center text-sm text-muted-foreground ring-1 ring-border">
-              Sin comidas cargadas este día.
-            </p>
-          )}
-          {selectedMeals.map((meal) => (
-            <EditableMealRow
-              key={meal.id}
-              meal={meal}
-              onSave={(patch) => handleSave(meal.id, patch)}
-              onDelete={() => handleDelete(meal.id)}
-            />
-          ))}
+      {showShoppingList ? (
+        <div className="mt-3">
+          <ShoppingList
+            meals={meals}
+            label={viewMode === "mes" ? "este mes" : "esta semana"}
+          />
         </div>
-      </div>
+      ) : (
+        <div className="mt-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium capitalize">{formatDateLong(selectedDate)}</p>
+            <button
+              type="button"
+              onClick={handleAdd}
+              className="flex items-center gap-1 rounded-md bg-foreground/5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-border hover:text-foreground"
+            >
+              <Plus className="size-3.5" />
+              Agregar
+            </button>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {selectedMeals.length === 0 && (
+              <p className="rounded-xl bg-card/60 p-4 text-center text-sm text-muted-foreground ring-1 ring-border">
+                Sin comidas cargadas este día.
+              </p>
+            )}
+            {selectedMeals.map((meal) => (
+              <EditableMealRow
+                key={meal.id}
+                meal={meal}
+                onSave={(patch) => handleSave(meal.id, patch)}
+                onDelete={() => handleDelete(meal.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

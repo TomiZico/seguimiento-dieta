@@ -12,8 +12,7 @@ const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY")!;
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:no-reply@example.com";
 
-// Argentina no tiene horario de verano: offset fijo UTC-3.
-const AR_OFFSET_MINUTES = -180;
+const DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires";
 
 const MEAL_LABELS: Record<string, string> = {
   desayuno: "Desayuno",
@@ -24,43 +23,58 @@ const MEAL_LABELS: Record<string, string> = {
   cena: "Cena",
 };
 
-function nowInArgentina(): Date {
-  const utcNow = Date.now();
-  return new Date(utcNow + AR_OFFSET_MINUTES * 60000);
-}
-
-function todayISOInArgentina(): string {
-  return nowInArgentina().toISOString().slice(0, 10);
+/** Fecha (yyyy-mm-dd) y minutos desde medianoche de `date` en la zona `timeZone`. */
+function localDateAndMinutes(date: Date, timeZone: string): { isoDate: string; minutes: number } {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(date).map((p) => [p.type, p.value]));
+  return {
+    isoDate: `${parts.year}-${parts.month}-${parts.day}`,
+    minutes: Number(parts.hour) * 60 + Number(parts.minute),
+  };
 }
 
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
 Deno.serve(async () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-  const today = todayISOInArgentina();
-  const nowMinutes = (() => {
-    const n = nowInArgentina();
-    return n.getUTCHours() * 60 + n.getUTCMinutes();
-  })();
+  const now = new Date();
+  // Rango amplio en UTC (±1 día) para no perderse comidas de usuarios en
+  // cualquier huso horario; el filtro fino por fecha/hora local de cada
+  // usuario se hace después, en memoria.
+  const rangeStart = new Date(now.getTime() - 26 * 60 * 60000).toISOString().slice(0, 10);
+  const rangeEnd = new Date(now.getTime() + 26 * 60 * 60000).toISOString().slice(0, 10);
 
   // La función corre con la service role key, que ignora RLS: acá se procesan
   // las comidas de TODOS los usuarios en una sola pasada, agrupando por
   // user_id para mandarle a cada uno sus propios avisos con sus propias
-  // suscripciones y su propia configuración.
-  const { data: settingsRows, error: settingsError } = await supabase
-    .from("notification_settings")
-    .select("user_id, meal_type, lead_minutes, enabled");
+  // suscripciones, su propia configuración y su propia zona horaria.
+  const [{ data: profileRows, error: profilesError }, { data: settingsRows, error: settingsError }] =
+    await Promise.all([
+      supabase.from("user_profiles").select("user_id, timezone"),
+      supabase.from("notification_settings").select("user_id, meal_type, lead_minutes, enabled"),
+    ]);
+  if (profilesError) {
+    return new Response(JSON.stringify({ error: profilesError.message }), { status: 500 });
+  }
   if (settingsError) {
     return new Response(JSON.stringify({ error: settingsError.message }), { status: 500 });
   }
-  const leadByUserAndType = new Map(
-    settingsRows.map((s) => [`${s.user_id}:${s.meal_type}`, s]),
-  );
+  const timezoneByUser = new Map((profileRows ?? []).map((p) => [p.user_id, p.timezone]));
+  const leadByUserAndType = new Map(settingsRows.map((s) => [`${s.user_id}:${s.meal_type}`, s]));
 
   const { data: meals, error: mealsError } = await supabase
     .from("meals")
-    .select("id, user_id, meal_type, food, time")
-    .eq("date", today)
+    .select("id, user_id, meal_type, food, time, date")
+    .gte("date", rangeStart)
+    .lte("date", rangeEnd)
     .eq("status", "pendiente")
     .is("notified_at", null);
   if (mealsError) {
@@ -70,6 +84,11 @@ Deno.serve(async () => {
   const due = (meals ?? []).filter((meal) => {
     const setting = leadByUserAndType.get(`${meal.user_id}:${meal.meal_type}`);
     if (!setting || !setting.enabled) return false;
+
+    const timeZone = timezoneByUser.get(meal.user_id) ?? DEFAULT_TIMEZONE;
+    const { isoDate: localToday, minutes: nowMinutes } = localDateAndMinutes(now, timeZone);
+    if (meal.date !== localToday) return false;
+
     const [h, m] = String(meal.time).split(":").map(Number);
     const mealMinutes = (h ?? 0) * 60 + (m ?? 0);
     const notifyAtMinutes = mealMinutes - setting.lead_minutes;
